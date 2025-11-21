@@ -1,0 +1,48 @@
+name: Build and Deploy Raylib Web Game
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Emscripten (The Web Compiler)
+      uses: mymindstorm/setup-emsdk@v14
+
+    - name: Download Raylib
+      run: |
+        git clone --depth 1 [https://github.com/raysan5/raylib.git](https://github.com/raysan5/raylib.git) raylib
+        
+    - name: Compile Raylib for Web
+      working-directory: raylib/src
+      run: |
+        emcc -c rcore.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+        emcc -c rshapes.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+        emcc -c rtextures.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+        emcc -c rtext.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+        emcc -c rmodels.c -Os -Wall -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2
+        emcc -c utils.c -Os -Wall -DPLATFORM_WEB
+        emcc -c raudio.c -Os -Wall -DPLATFORM_WEB
+        emar rcs libraylib.a rcore.o rshapes.o rtextures.o rtext.o rmodels.o utils.o raudio.o
+
+    - name: Compile Your Game
+      run: |
+        mkdir build
+        # This command links your code with the raylib we just built
+        # It creates index.html, index.js, and index.wasm
+        emcc -o build/index.html main.c raylib/src/libraylib.a -Iraylib/src -Lraylib/src -s USE_GLFW=3 -s ASYNCIFY -DPLATFORM_WEB --shell-file raylib/src/minshell.html
+
+    - name: Deploy to GitHub Pages
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        folder: build
