@@ -1,2 +1,2 @@
 # Raylib-Webgame
-* Making website game using raylib *
+*Making website game using raylib*
