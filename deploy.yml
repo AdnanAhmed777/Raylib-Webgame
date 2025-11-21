@@ -1,0 +1,75 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: 3.1.51
+    
+    - name: Verify Emscripten installation
+      run: emcc -v
+    
+    - name: Create docs directory
+      run: mkdir -p docs
+    
+    - name: Compile game to WebAssembly
+      run: |
+        emcc snake_game.c \
+          -o docs/index.html \
+          -Os \
+          -Wall \
+          -DPLATFORM_WEB \
+          -s USE_GLFW=3 \
+          -s ASYNCIFY \
+          -s TOTAL_STACK=128MB \
+          -s INITIAL_MEMORY=128MB \
+          -s ALLOW_MEMORY_GROWTH=1 \
+          -s FULL_ES2=1 \
+          --shell-file shell.html \
+          -s EXPORTED_FUNCTIONS='["_main"]' \
+          -s EXPORTED_RUNTIME_METHODS='["ccall"]'
+    
+    - name: Copy additional files
+      run: |
+        if [ -f index.html ]; then
+          cp index.html docs/shell.html
+        fi
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./docs
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
